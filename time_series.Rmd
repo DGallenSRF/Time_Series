@@ -1,0 +1,84 @@
+---
+title: "I-494 test"
+output: html_document
+---
+
+Set working directory and load necessary packages.
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = 'H:/Projects/11000/11155/TraffStudy/DataCollection/FreewayData/Test')
+
+##below are a list of packages required to run the markdown file
+library(tidyverse)
+library(lubridate)
+library(gridExtra)
+library(reshape2)
+library(zoo)
+library(rgdal)
+library(imputeTS)
+```
+
+Check network location and contents.
+
+```{r}
+getwd()
+dir()
+```
+
+Load csv file
+
+```{r read data}
+dat <-read.csv("I-494 Test.csv",stringsAsFactors = FALSE)
+```
+
+```{r}
+
+colnames(dat)
+
+length(dat)
+```
+
+```{r melt data}
+
+dat_melt <- melt(dat,id.vars = colnames(dat[,1:6]))
+head(dat_melt)
+
+```
+
+```{r clean Time variable}
+
+dat_melt$Time <- substring(dat_melt$variable, 2)
+head(dat_melt)
+```
+
+```{r create DateTime column}
+
+dat_melt$DateTime <-  as.POSIXct(paste(dat_melt$X.2,dat_melt$Time,sep=''),format='%m/%d/%Y %H.%M')
+dat_melt[sample(nrow(dat_melt),10),]
+
+```
+
+```{r}
+dat_melt_volume <- dat_melt %>% 
+  filter(X.1=='Volume')%>%
+  filter(!is.na(DateTime))%>%
+  mutate(DayofYear = yday(DateTime))%>%
+  mutate(Year = year(DateTime))%>%
+  mutate(value = as.numeric(value))%>%
+  group_by(Year,DayofYear)%>%
+  summarise(Vol_mean = mean(value))%>%
+  arrange(Year,DayofYear)
+
+dat_melt_volume$Vol_mean[dat_melt_volume$Vol_mean<=0] <- NA
+
+head(dat_melt_volume)
+```
+
+```{r}
+dat_ts <-  ts(dat_melt_volume$Vol_mean,frequency = 365,start=c(2015,32))
+
+plotNA.distribution(dat_ts)
+
+dat_stl <- stl(dat_ts,"periodic")
+```
+
